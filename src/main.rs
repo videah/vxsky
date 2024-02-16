@@ -288,5 +288,5 @@ async fn embed_image(
 
 /// Basic handler to redirect to the main website from the root path.
 async fn index_redirect() -> Redirect {
-    Redirect::temporary("https://bsky.app")
+    Redirect::temporary("https://bsky.app/profile/vxsky.app")
 }
