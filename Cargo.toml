@@ -1,0 +1,29 @@
+[package]
+name = "vxsky"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.79"
+atrium-api = { version = "0.16.0", features = ["tokio"] }
+atrium-xrpc-client = { version = "0.2.0", default-features = false, features = ["reqwest-rustls"] }
+axum = { version = "0.7.4", features = ["macros"] }
+env_logger = "0.11.2"
+image = { version = "0.24.8", features = [] }
+imageproc = "0.23.0"
+thiserror = "1.0.57"
+tokio = { version = "1.36.0", features = ["full"] }
+log = "0.4.20"
+reqwest = { version = "0.11.24", default-features = false, features = ["rustls"] }
+rayon = "1.8.1"
+futures = "0.3.30"
+either = "1.10.0"
+askama = { version = "0.12.1", features = ["with-axum"] }
+askama_axum = "0.4.0"
+atrium-xrpc = "0.8.0"
+axum_thiserror = "0.1.0"
+serde = { version = "1.0.196", features = ["derive"] }
+async-trait = { version = "0.1.77", features = [] }
+dotenv = "0.15.0"
