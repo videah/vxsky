@@ -79,7 +79,7 @@ struct AppState {
 async fn main() -> anyhow::Result<()> {
     // Set up logging and load environment variables from a .env file.
     dotenv::dotenv().ok();
-    let env = env_logger::Env::default().filter_or("RUST_LOG", "debug");
+    let env = env_logger::Env::default().filter_or("RUST_LOG", "info");
     env_logger::init_from_env(env);
 
     let listener = TcpListener::bind("0.0.0.0:8080").await?;
