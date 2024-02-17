@@ -103,9 +103,10 @@ fn combine_images(
             layout_horizontal(&mut new_image, &scaled_images[..2], 0);
 
             // Take the last image, treat it like an image array and scale it to the total width,
-            // but with the same height as all individual images
+            // but with the same height as all individual images. We use the unscaled image to
+            // prevent resizing the image twice down twice making it too small.
             let processed_last_img = scale_all_images_to_same_size(
-                &[scaled_images[2].to_owned()],
+                &[images[2].to_owned()],
                 total_width,
                 top_img.height(),
                 pad,
