@@ -1,3 +1,5 @@
+//! Extractor for the `User-Agent` header from requests and validates it against a list of bots.
+
 use async_trait::async_trait;
 use axum::{
     extract::FromRequestParts,

@@ -1,0 +1,36 @@
+<html lang="en">
+<head>
+
+    <title>vxsky</title>
+    <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" />
+    <meta content="#7FFFD4" name="theme-color" />
+    <meta property="og:site_name" content="Bluesky Social" />
+
+    {% match profile.display_name %}
+        {% when Some with (display_name) %}
+            {% match display_name.is_empty() %}
+            {% when false %}
+                <meta property="og:title" content="{{ display_name }} (@{{ profile.handle }})" />
+                <meta name="twitter:title" content="{{ display_name }} (@{{ profile.handle }})" />
+                <meta name="twitter:creator" content="{{ display_name }}" />
+            {% when true %}
+                <meta property="og:title" content="@{{ profile.handle }}" />
+                <meta name="twitter:title" content="@{{ profile.handle }}"/>
+                <meta name="twitter:creator" content="@{{ profile.handle }}" />
+            {% endmatch %}
+        {% when None %}
+            <meta property="og:title" content="@{{ profile.handle }}" />
+            <meta name="twitter:title" content="@{{ profile.handle }}"/>
+            <meta name="twitter:creator" content="@{{ profile.handle }}" />
+    {% endmatch %}
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="{{ base_url }}/gated.png" />
+
+    <meta property="og:description" content="This post requires an account to view!" />
+
+    <meta http-equiv="refresh" content="0; url = {{ post_url }}" />
+</head>
+<body>
+    Redirecting you to the post in a moment. If this is taking too long, <a href="{{ post_url }}">click here.</a>
+</body>

@@ -1,3 +1,5 @@
+//! Improves multi-image embeds for Bluesky by combining all images into one thumbnail.
+
 mod processing;
 mod templates;
 mod user_agent;
@@ -48,12 +50,16 @@ use log::{
     error,
     info,
 };
+use rayon::prelude::*;
 use serde::Deserialize;
 use thiserror::Error;
 use tokio::net::TcpListener;
 
 use crate::{
-    templates::ImageEmbed,
+    templates::{
+        EmbedAccountGated,
+        ImageEmbed,
+    },
     user_agent::RequireEmbed,
 };
 
@@ -73,7 +79,7 @@ struct AppState {
 async fn main() -> anyhow::Result<()> {
     // Set up logging and load environment variables from a .env file.
     dotenv::dotenv().ok();
-    let env = env_logger::Env::default().filter_or("RUST_LOG", "info");
+    let env = env_logger::Env::default().filter_or("RUST_LOG", "debug");
     env_logger::init_from_env(env);
 
     let listener = TcpListener::bind("0.0.0.0:8080").await?;
@@ -105,6 +111,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/", get(index_redirect))
         .route("/profile/:identifier/post/:post_id", get(embed_image))
         .route("/render-combined-image.png", get(render_combined_image))
+        .route("/gated.png", get(gated_image))
         .with_state(state);
 
     info!("Listening on {}", listener.local_addr()?);
@@ -225,8 +232,15 @@ async fn get_post(uri: &String, state: &AppState) -> Result<PostView, EmbedError
 /// Selector for the `embed_image` handler to determine whether to return an HTML page featuring the
 /// necessary meta tags for an embed card or to 302 Redirect to the post directly.
 enum EmbedRouter {
+    /// The request has came from a bot associated with embed cards, so we return an HTML page with
+    /// the appropriate meta tags.
     Embed(Box<ImageEmbed>),
+    /// The request has come from what we think is a real person, so we 302 Redirect to the post
+    /// directly.
     DirectLink(Redirect),
+    /// The post is account gated and requires an authenticated account to view, so we return an
+    /// HTML page with a different embed card informing people of such.
+    AccountGatedEmbed(Box<EmbedAccountGated>),
 }
 
 impl IntoResponse for EmbedRouter {
@@ -234,6 +248,7 @@ impl IntoResponse for EmbedRouter {
         match self {
             EmbedRouter::Embed(embed) => embed.into_response(),
             EmbedRouter::DirectLink(redirect) => redirect.into_response(),
+            EmbedRouter::AccountGatedEmbed(embed) => embed.into_response(),
         }
     }
 }
@@ -270,6 +285,23 @@ async fn embed_image(
     let aturi = format!("at://{}/app.bsky.feed.post/{post_id}", response.did);
 
     let view = get_post(&aturi, &state).await?;
+
+    // If the account has a label set to require only authenticated accounts we respect it and
+    // return a different embed card informing people of such.
+    if let Some(labels) = &view.author.labels {
+        if labels
+            .par_iter()
+            .any(|label| label.val == "!no-unauthenticated")
+        {
+            let embed = EmbedRouter::AccountGatedEmbed(Box::new(EmbedAccountGated {
+                profile: view.author.to_owned(),
+                base_url: state.base_url.to_owned(),
+                post_url,
+            }));
+            return Ok(embed);
+        }
+    }
+
     let record = match view.record {
         Record::AppBskyFeedPost(record) => record,
         _ => return Err(EmbedError::UnimplementedRecordHandler),
@@ -289,4 +321,11 @@ async fn embed_image(
 /// Basic handler to redirect to the main website from the root path.
 async fn index_redirect() -> Redirect {
     Redirect::temporary("https://bsky.app/profile/vxsky.app")
+}
+
+/// Handler to serve the image used for the account gated embed card, where a user must be logged in
+/// to view the contents of a post.
+async fn gated_image() -> impl IntoResponse {
+    let image = include_bytes!("../assets/gated.png");
+    ([(header::CONTENT_TYPE, "image/png")], image.to_vec())
 }
