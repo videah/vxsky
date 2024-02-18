@@ -45,12 +45,20 @@ use axum::{
     Router,
 };
 use axum_thiserror::ErrorStatus;
+use http_cache_reqwest::{
+    CACacheManager,
+    Cache,
+    CacheMode,
+    HttpCache,
+    HttpCacheOptions,
+};
 use image::DynamicImage;
 use log::{
     error,
     info,
 };
 use rayon::prelude::*;
+use reqwest_middleware::ClientWithMiddleware;
 use serde::Deserialize;
 use thiserror::Error;
 use tokio::net::TcpListener;
@@ -70,7 +78,7 @@ struct AppState {
     /// management.
     agent: Arc<AtpAgent<MemorySessionStore, ReqwestClient>>,
     /// The HTTP client used to make requests for images.
-    http_client: reqwest::Client,
+    http_client: ClientWithMiddleware,
     /// The base URL for where this application is hosted (e.g. "https://vsky.app").
     base_url: String,
 }
@@ -92,7 +100,13 @@ async fn main() -> anyhow::Result<()> {
             ReqwestClient::new("https://bsky.social"),
             MemorySessionStore::default(),
         )),
-        http_client: reqwest::Client::new(),
+        http_client: reqwest_middleware::ClientBuilder::new(reqwest::Client::new())
+            .with(Cache(HttpCache {
+                mode: CacheMode::Default,
+                manager: CACacheManager::default(),
+                options: HttpCacheOptions::default(),
+            }))
+            .build(),
         base_url,
     };
 
@@ -145,7 +159,10 @@ enum EmbedError {
     ThumbnailLoadingError(#[from] image::ImageError),
     #[error("An error occurred while downloading an image: {0}")]
     #[status(StatusCode::INTERNAL_SERVER_ERROR)]
-    ThumbnailDownloadError(#[from] reqwest::Error),
+    ThumbnailDownloadError(#[from] reqwest_middleware::Error),
+    #[error("Could not retrieve image bytes from response")]
+    #[status(StatusCode::INTERNAL_SERVER_ERROR)]
+    ThumbnailBytesError(#[from] reqwest::Error),
 }
 
 /// Parameters passed to the combined image thumbnail rendering endpoint to tell it what post it
@@ -232,7 +249,7 @@ async fn get_post(uri: &String, state: &AppState) -> Result<PostView, EmbedError
 /// Selector for the `embed_image` handler to determine whether to return an HTML page featuring the
 /// necessary meta tags for an embed card or to 302 Redirect to the post directly.
 enum EmbedRouter {
-    /// The request has came from a bot associated with embed cards, so we return an HTML page with
+    /// The request has come from a bot associated with embed cards, so we return an HTML page with
     /// the appropriate meta tags.
     Embed(Box<ImageEmbed>),
     /// The request has come from what we think is a real person, so we 302 Redirect to the post

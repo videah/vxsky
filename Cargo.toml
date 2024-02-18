@@ -28,3 +28,5 @@ serde = { version = "1.0.196", features = ["derive"] }
 async-trait = { version = "0.1.77", features = [] }
 dotenv = "0.15.0"
 blurslice = "0.1.0"
+http-cache-reqwest = "0.13.0"
+reqwest-middleware = "0.2.4"
