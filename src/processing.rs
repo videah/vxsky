@@ -7,8 +7,11 @@ use image::{
     imageops::FilterType,
     DynamicImage,
     GenericImageView,
+    ImageBuffer,
     ImageError,
     ImageOutputFormat,
+    Rgb,
+    RgbImage,
 };
 use log::debug;
 use rayon::prelude::*;
@@ -25,6 +28,10 @@ pub enum ProcessingError {
     CouldNotFindMostPixels,
     #[error("Image encoding error: {0}")]
     ImageError(#[from] ImageError),
+    #[error("Failed to blur image: {0}")]
+    BlurSliceSizeError(#[from] blurslice::SliceSizeError),
+    #[error("Failed to blur image, final image buffer could not be allocated")]
+    BlurBufferError,
 }
 
 /// A basic wrapper struct to hold a combined thumbnail's bytes for passing back from an axum
@@ -54,11 +61,34 @@ pub fn generate_combined_thumbnail(
 ) -> Result<CombinedThumbnail, ProcessingError> {
     let total_size = get_total_img_size(&images)?;
     let combined = combine_images(&images, total_size.0, total_size.1, true)?;
-    let mut background = combine_images(&images, total_size.0, total_size.1, false)?.blur(50.0);
-    imageops::overlay(&mut background, &combined, 0, 0);
+    let background = combine_images(&images, total_size.0, total_size.1, false)?;
+    let mut blurred_bg = blur_background(&mut background.to_rgb8())?;
 
-    let thumbnail = CombinedThumbnail::new(background, ImageOutputFormat::Png)?;
+    imageops::overlay(&mut blurred_bg, &combined, 0, 0);
+
+    let thumbnail = CombinedThumbnail::new(blurred_bg, ImageOutputFormat::Png)?;
     Ok(thumbnail)
+}
+
+/// Takes a [`DynamicImage`] and applies a fast gaussian blur effect to it.
+fn blur_background(background: &mut RgbImage) -> Result<DynamicImage, ProcessingError> {
+    let start = std::time::Instant::now();
+    debug!("Blurring background: {:?}", background.dimensions());
+
+    let (width, height) = background.dimensions();
+    let samples = background.as_flat_samples_mut();
+    blurslice::gaussian_blur_bytes::<3>(samples.samples, width as usize, height as usize, 50.0)
+        .map_err(ProcessingError::BlurSliceSizeError)?;
+
+    let duration = start.elapsed();
+    debug!("Finished blurring background in {duration:?}");
+
+    let data = samples.image_slice().unwrap();
+    let img_buffer: ImageBuffer<Rgb<u8>, Vec<u8>> =
+        ImageBuffer::from_raw(width, height, data.to_vec())
+            .ok_or(ProcessingError::BlurBufferError)?;
+
+    Ok(DynamicImage::ImageRgb8(img_buffer))
 }
 
 /// Combine two images in a horizontal layout, with an optional vertical offset.

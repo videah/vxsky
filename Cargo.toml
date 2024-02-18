@@ -27,3 +27,6 @@ axum_thiserror = "0.1.0"
 serde = { version = "1.0.196", features = ["derive"] }
 async-trait = { version = "0.1.77", features = [] }
 dotenv = "0.15.0"
+resvg = { version = "0.40.0", default-features = false, features = ["raster-images"] }
+rgb = "0.8.37"
+blurslice = "0.1.0"
