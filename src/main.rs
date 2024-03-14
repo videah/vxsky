@@ -45,20 +45,13 @@ use axum::{
     Router,
 };
 use axum_thiserror::ErrorStatus;
-use http_cache_reqwest::{
-    CACacheManager,
-    Cache,
-    CacheMode,
-    HttpCache,
-    HttpCacheOptions,
-};
 use image::DynamicImage;
 use log::{
     error,
     info,
 };
 use rayon::prelude::*;
-use reqwest_middleware::ClientWithMiddleware;
+use reqwest::Client;
 use serde::Deserialize;
 use thiserror::Error;
 use tokio::net::TcpListener;
@@ -78,7 +71,7 @@ struct AppState {
     /// management.
     agent: Arc<AtpAgent<MemorySessionStore, ReqwestClient>>,
     /// The HTTP client used to make requests for images.
-    http_client: ClientWithMiddleware,
+    http_client: Client,
     /// The base URL for where this application is hosted (e.g. "https://vsky.app").
     base_url: String,
 }
@@ -100,13 +93,7 @@ async fn main() -> anyhow::Result<()> {
             ReqwestClient::new("https://bsky.social"),
             MemorySessionStore::default(),
         )),
-        http_client: reqwest_middleware::ClientBuilder::new(reqwest::Client::new())
-            .with(Cache(HttpCache {
-                mode: CacheMode::Default,
-                manager: CACacheManager::default(),
-                options: HttpCacheOptions::default(),
-            }))
-            .build(),
+        http_client: Client::new(),
         base_url,
     };
 
@@ -157,9 +144,6 @@ enum EmbedError {
     #[error("An error occurred while loading an image: {0}")]
     #[status(StatusCode::INTERNAL_SERVER_ERROR)]
     ThumbnailLoadingError(#[from] image::ImageError),
-    #[error("An error occurred while downloading an image: {0}")]
-    #[status(StatusCode::INTERNAL_SERVER_ERROR)]
-    ThumbnailDownloadError(#[from] reqwest_middleware::Error),
     #[error("Could not retrieve image bytes from response")]
     #[status(StatusCode::INTERNAL_SERVER_ERROR)]
     ThumbnailBytesError(#[from] reqwest::Error),
